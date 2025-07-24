@@ -98,6 +98,91 @@ Recruitment Team`,
     }
 });
 
+app.get('/send-interview/:email', async (req, res) => {
+    const recipientEmail = req.params.email;
+    const interviewLink = req.query.link;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(recipientEmail)) {
+        return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    if (!interviewLink || !interviewLink.startsWith('http')) {
+        return res.status(400).json({ error: 'A valid interview link is required' });
+    }
+
+    const mailOptions = {
+        from: process.env.USER,
+        to: recipientEmail,
+        subject: 'Interview Invitation',
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9f9f9; padding: 20px;">
+                <div style="background: white; padding: 30px; border-radius: 8px;">
+                    <h2 style="text-align: center; color: #2980b9;">Interview Invitation</h2>
+                    <p>Hello,</p>
+                    <p>We are pleased to invite you to an interview.</p>
+                    <p>Please join using the link below at the scheduled time:</p>
+                    <p style="text-align: center; margin: 20px 0;">
+                        <a href="${interviewLink}" style="background: #27ae60; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Join Interview</a>
+                    </p>
+                    <p>We look forward to speaking with you.</p>
+                    <p>Best regards,<br/>Recruitment Team</p>
+                </div>
+            </div>
+        `
+    };
+
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        res.json({
+            success: true,
+            messageId: info.messageId,
+            recipient: recipientEmail,
+            interviewLink
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/send-decision/:email/:id', async (req, res) => {
+    const recipientEmail = req.params.email;
+    const candidatureId = req.params.id;
+    const status = req.query.status?.toLowerCase();
+
+    if (!['accepted', 'rejected'].includes(status)) {
+        return res.status(400).json({ error: 'Status must be "accepted" or "rejected"' });
+    }
+
+    const subject = status === 'accepted' ? 'Congratulations! You are Accepted' : 'Candidature Update';
+    const bodyText = status === 'accepted'
+        ? `We are pleased to inform you that your application (ID: ${candidatureId}) has been accepted. Welcome aboard!`
+        : `We regret to inform you that your application (ID: ${candidatureId}) was not selected. Thank you for applying.`;
+
+    const mailOptions = {
+        from: process.env.USER,
+        to: recipientEmail,
+        subject,
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9f9f9; padding: 20px;">
+                <div style="background: white; padding: 30px; border-radius: 8px;">
+                    <h2 style="text-align: center; color: ${status === 'accepted' ? '#27ae60' : '#c0392b'};">${subject}</h2>
+                    <p>${bodyText}</p>
+                    <p>Best regards,<br/>Recruitment Team</p>
+                </div>
+            </div>
+        `
+    };
+
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        res.json({ success: true, messageId: info.messageId });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Email service running on port ${PORT}`);
